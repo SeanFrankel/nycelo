@@ -31,6 +31,11 @@ import {
 } from "@workspace/api-zod";
 import { updateElo } from "../lib/elo";
 import {
+  weightedSample,
+  opponentWeight,
+  contenderWeight,
+} from "../lib/matchup";
+import {
   clampAggregates,
   confidenceFor,
   voteWeight,
@@ -188,39 +193,116 @@ router.get("/matchup", async (req, res): Promise<void> => {
     return;
   }
 
-  // Pick contender A at random, then prefer a similarly-rated opponent
-  // (interesting duels), with a random fallback.
-  const [a] = await db
-    .select()
-    .from(neighborhoodsTable)
-    .orderBy(sql`random()`)
-    .limit(1);
-  if (!a) {
-    res.status(404).json({ error: "No neighborhoods found" });
-    return;
-  }
-  const ratingA = await getOrCreateRating(a.id, trait.id);
-
-  const [b] = await db
-    .select({ n: neighborhoodsTable })
-    .from(neighborhoodsTable)
-    .leftJoin(
-      ratingsTable,
-      and(
-        eq(ratingsTable.neighborhoodId, neighborhoodsTable.id),
-        eq(ratingsTable.traitId, trait.id),
-      ),
-    )
-    .where(sql`${neighborhoodsTable.id} != ${a.id}`)
-    .orderBy(
-      sql`abs(coalesce(${ratingsTable.rating}, 1500) - ${ratingA.rating}) + random() * 120`,
-    )
-    .limit(1);
-  if (!b) {
+  const allHoods = await db.select().from(neighborhoodsTable);
+  if (allHoods.length < 2) {
     res.status(404).json({ error: "Not enough neighborhoods for a matchup" });
     return;
   }
-  const ratingB = await getOrCreateRating(b.n.id, trait.id);
+  const byId = new Map(allHoods.map((h) => [h.id, h]));
+
+  // Ratings for this trait (missing rows imply the 1500 default).
+  const traitRatings = await db
+    .select({
+      neighborhoodId: ratingsTable.neighborhoodId,
+      rating: ratingsTable.rating,
+    })
+    .from(ratingsTable)
+    .where(eq(ratingsTable.traitId, trait.id));
+  const ratingOf = new Map(
+    traitRatings.map((r) => [r.neighborhoodId, r.rating]),
+  );
+  const rating = (id: number) => ratingOf.get(id) ?? 1500;
+
+  // ---- Personalized onboarding: a new voter's first 3 matchups anchor
+  // on where they are right now vs where they've been (experience
+  // record), falling back to popular neighborhoods.
+  let a: (typeof allHoods)[number] | null = null;
+  let b: (typeof allHoods)[number] | null = null;
+
+  const { voterToken, anchorNeighborhoodId } = query.data;
+  if (voterToken && TOKEN_RE.test(voterToken)) {
+    const [voter] = await db
+      .select()
+      .from(votersTable)
+      .where(eq(votersTable.token, voterToken));
+    const [voteCountRow] = voter
+      ? await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(votesTable)
+          .where(
+            and(
+              eq(votesTable.voterId, voter.id),
+              sql`${votesTable.outcome} != 'skip'`,
+            ),
+          )
+      : [{ count: 0 }];
+
+    if ((voteCountRow?.count ?? 0) < 3) {
+      const popular = allHoods.filter((h) => h.popularity >= 4);
+      const anchor = anchorNeighborhoodId
+        ? (byId.get(anchorNeighborhoodId) ?? null)
+        : null;
+
+      // Neighborhoods the voter has proven experience in (visited before).
+      const visited: (typeof allHoods)[number][] = [];
+      if (voter) {
+        const evidence = await db
+          .select({ neighborhoodId: experienceTable.neighborhoodId })
+          .from(experienceTable)
+          .where(eq(experienceTable.voterId, voter.id));
+        for (const row of evidence) {
+          const hood = byId.get(row.neighborhoodId);
+          if (hood) visited.push(hood);
+        }
+      }
+
+      // Anchor priority: current location, else a neighborhood they've
+      // been to before; famous-vs-famous only when neither exists.
+      const personalAnchor =
+        anchor ?? weightedSample(visited, (h) => contenderWeight(h));
+
+      if (personalAnchor) {
+        a = personalAnchor;
+        const beenBefore = visited.filter((h) => h.id !== personalAnchor.id);
+        const pool = beenBefore.length
+          ? beenBefore
+          : popular.filter((h) => h.id !== personalAnchor.id);
+        b = weightedSample(pool, (h) =>
+          opponentWeight(personalAnchor, h, rating(personalAnchor.id), rating(h.id)),
+        );
+      } else if (popular.length >= 2) {
+        // No location: famous-vs-famous duels everyone has an opinion on.
+        a = weightedSample(popular, (h) => contenderWeight(h));
+        if (a) {
+          const aHood = a;
+          b = weightedSample(
+            popular.filter((h) => h.id !== aHood.id),
+            (h) => opponentWeight(aHood, h, rating(aHood.id), rating(h.id)),
+          );
+        }
+      }
+    }
+  }
+
+  // ---- Regular fun algorithm: popularity-weighted contender, opponent
+  // weighted by proximity x popularity x rating closeness (+ wildcard).
+  if (!a || !b) {
+    const picked = weightedSample(allHoods, (h) => contenderWeight(h));
+    if (picked) {
+      a = picked;
+      b = weightedSample(
+        allHoods.filter((h) => h.id !== picked.id),
+        (h) => opponentWeight(picked, h, rating(picked.id), rating(h.id)),
+      );
+    }
+  }
+  if (!a || !b) {
+    res.status(404).json({ error: "Not enough neighborhoods for a matchup" });
+    return;
+  }
+
+  const ratingA = await getOrCreateRating(a.id, trait.id);
+  const ratingB = await getOrCreateRating(b.id, trait.id);
 
   const enrichedTrait = await traitWithVotes(trait);
   res.json(
@@ -233,7 +315,7 @@ router.get("/matchup", async (req, res): Promise<void> => {
         gamesPlayed: ratingA.gamesPlayed,
       },
       b: {
-        neighborhood: b.n,
+        neighborhood: b,
         rating: ratingB.rating,
         rank: await rankOf(trait.id, ratingB.rating),
         gamesPlayed: ratingB.gamesPlayed,

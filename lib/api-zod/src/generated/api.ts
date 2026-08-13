@@ -35,7 +35,9 @@ export const ListTraitsResponse = zod.array(ListTraitsResponseItem)
  * @summary Get a head-to-head matchup for a random or specified trait
  */
 export const GetMatchupQueryParams = zod.object({
-  "traitSlug": zod.coerce.string().optional().describe('Restrict the matchup to this trait; otherwise a random trait is chosen')
+  "traitSlug": zod.coerce.string().optional().describe('Restrict the matchup to this trait; otherwise a random trait is chosen'),
+  "voterToken": zod.coerce.string().optional().describe('Anonymous voter token; enables personalized first matchups for new voters'),
+  "anchorNeighborhoodId": zod.coerce.number().optional().describe('The voter\'s current neighborhood (matched client-side); used to personalize early matchups')
 })
 
 export const GetMatchupResponse = zod.object({

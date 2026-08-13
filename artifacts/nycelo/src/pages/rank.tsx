@@ -7,6 +7,7 @@ import { DualMap } from "@/components/Map"
 import { Loader2, AlertCircle, ArrowRight, SkipForward, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getVoterToken } from "@/lib/voter"
+import { useCurrentNeighborhoodId } from "@/hooks/useCurrentNeighborhood"
 
 export default function Rank() {
   const queryClient = useQueryClient()
@@ -24,10 +25,19 @@ export default function Rank() {
   
   const [isTransitioning, setIsTransitioning] = useState(false)
 
-  const { data: matchup, isLoading, isError, refetch } = useGetMatchup(undefined, {
+  // Current neighborhood (only when location permission is already
+  // granted — never prompts) personalizes a new voter's first matchups.
+  const { neighborhoodId: anchorId, ready: anchorReady } = useCurrentNeighborhoodId()
+
+  const matchupParams = {
+    voterToken: token,
+    ...(anchorId != null ? { anchorNeighborhoodId: anchorId } : {})
+  }
+  const { data: matchup, isLoading, isError, refetch } = useGetMatchup(matchupParams, {
     query: {
       refetchOnWindowFocus: false,
-      queryKey: getGetMatchupQueryKey()
+      enabled: anchorReady,
+      queryKey: getGetMatchupQueryKey(matchupParams)
     }
   })
 
@@ -69,7 +79,7 @@ export default function Rank() {
         onSuccess: (voteResult) => {
           if (outcome === "skip") {
             // Skips go straight to next
-            queryClient.invalidateQueries({ queryKey: getGetMatchupQueryKey() })
+            queryClient.invalidateQueries({ queryKey: getGetMatchupQueryKey(matchupParams) })
             setIsTransitioning(false)
           } else {
             // Show result briefly
@@ -84,7 +94,7 @@ export default function Rank() {
             
             setTimeout(() => {
               setResult(null)
-              queryClient.invalidateQueries({ queryKey: getGetMatchupQueryKey() })
+              queryClient.invalidateQueries({ queryKey: getGetMatchupQueryKey(matchupParams) })
               setIsTransitioning(false)
             }, 2000)
           }

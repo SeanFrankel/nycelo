@@ -11,4 +11,12 @@ export type GetMatchupParams = {
  * Restrict the matchup to this trait; otherwise a random trait is chosen
  */
 traitSlug?: string;
+/**
+ * Anonymous voter token; enables personalized first matchups for new voters
+ */
+voterToken?: string;
+/**
+ * The voter's current neighborhood (matched client-side); used to personalize early matchups
+ */
+anchorNeighborhoodId?: number;
 };

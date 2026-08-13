@@ -1,4 +1,5 @@
 import { db, neighborhoodsTable, traitsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import HOOD_META from "./nycelo-hood-meta.json";
 
 const metaByName = new Map(HOOD_META.map((m) => [m.name, m]));
@@ -229,10 +230,83 @@ const TRAITS: Array<[string, string, string, string]> = [
   ["character", "Neighborhood Character", "Charm, architecture, and a sense of place", "landmark"],
 ];
 
+/**
+ * Popularity/notoriety tiers used to weight matchup selection:
+ * 8 = iconic, 4 = well-known, 2 = average, 1 = low-profile (default).
+ * Any neighborhood not listed here is low-profile.
+ */
+const POPULARITY_TIERS: Record<number, string[]> = {
+  8: [
+    "Williamsburg", "SoHo", "Harlem", "Upper East Side", "Upper West Side",
+    "Astoria", "Park Slope", "Greenwich Village", "East Village",
+    "West Village", "Tribeca", "Chelsea", "Times Square", "Bushwick",
+    "DUMBO", "Chinatown", "Lower East Side", "Long Island City",
+    "Coney Island", "Midtown",
+  ],
+  4: [
+    "Bedford-Stuyvesant", "Greenpoint", "Brooklyn Heights", "Crown Heights",
+    "Flushing", "Jackson Heights", "Forest Hills", "Hell's Kitchen",
+    "Financial District", "Little Italy", "Nolita", "NoHo",
+    "Flatiron District", "Gramercy", "Union Square", "Hudson Yards",
+    "Koreatown", "Morningside Heights", "Washington Heights", "Inwood",
+    "East Harlem", "Fort Greene", "Clinton Hill", "Prospect Heights",
+    "Carroll Gardens", "Cobble Hill", "Boerum Hill", "Red Hook", "Gowanus",
+    "Downtown Brooklyn", "Bay Ridge", "Sunset Park", "Flatbush",
+    "Bensonhurst", "Brighton Beach", "Sheepshead Bay", "Sunnyside",
+    "Ridgewood", "Jamaica", "Rockaway Beach", "Elmhurst", "Corona",
+    "Woodside", "Riverdale", "Mott Haven", "Fordham", "City Island",
+    "St. George", "Battery Park City", "Murray Hill",
+  ],
+  2: [
+    "Greenwood Heights", "Kensington", "Ditmas Park", "Midwood",
+    "East Flatbush", "Borough Park", "Dyker Heights", "Canarsie",
+    "Brownsville", "East New York", "Windsor Terrace",
+    "Prospect Lefferts Gardens", "Manhattan Valley", "Yorkville",
+    "Lenox Hill", "Kips Bay", "Stuyvesant Town", "Roosevelt Island",
+    "Lincoln Square", "NoMad", "Hamilton Heights", "Rego Park",
+    "Kew Gardens", "Maspeth", "Glendale", "Middle Village", "Ozone Park",
+    "Richmond Hill", "Bayside", "Whitestone", "College Point",
+    "Fresh Meadows", "Howard Beach", "Bath Beach", "Gravesend",
+    "Marine Park", "Concourse", "Belmont", "Parkchester", "Throgs Neck",
+    "Pelham Bay", "Woodlawn", "Stapleton", "Tompkinsville",
+    "West Brighton", "Great Kills", "Tottenville", "New Dorp",
+    "Todt Hill", "Far Rockaway",
+  ],
+};
+
+const popularityByName = new Map<string, number>();
+for (const [tier, names] of Object.entries(POPULARITY_TIERS)) {
+  for (const name of names) popularityByName.set(name, Number(tier));
+}
+const popularityOf = (name: string) => popularityByName.get(name) ?? 1;
+
+async function backfillPopularity() {
+  const rows = await db
+    .select({
+      id: neighborhoodsTable.id,
+      name: neighborhoodsTable.name,
+      popularity: neighborhoodsTable.popularity,
+    })
+    .from(neighborhoodsTable);
+  let updated = 0;
+  for (const row of rows) {
+    const target = popularityOf(row.name);
+    if (row.popularity !== target) {
+      await db
+        .update(neighborhoodsTable)
+        .set({ popularity: target })
+        .where(eq(neighborhoodsTable.id, row.id));
+      updated += 1;
+    }
+  }
+  console.log(`Popularity backfill: ${updated} of ${rows.length} rows updated.`);
+}
+
 async function main() {
   const existing = await db.select().from(neighborhoodsTable).limit(1);
   if (existing.length > 0) {
-    console.log("Already seeded, skipping.");
+    console.log("Already seeded — backfilling popularity tiers only.");
+    await backfillPopularity();
     process.exit(0);
   }
 
@@ -253,6 +327,7 @@ async function main() {
       lng,
       photoUrl: photo(vibe),
       blurb: metaByName.get(name)?.blurb ?? null,
+      popularity: popularityOf(name),
     })),
   );
 
