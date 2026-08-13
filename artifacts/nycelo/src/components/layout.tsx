@@ -2,9 +2,12 @@ import { Link, useLocation } from "wouter"
 import { cn } from "@/lib/utils"
 import { Trophy, ArrowRightLeft, MapPin } from "lucide-react"
 import { ReactNode } from "react"
+import { useAutoCheckin } from "@/hooks/useAutoCheckin"
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation()
+  // Passive check-ins accrue silently on any page while enabled.
+  useAutoCheckin()
   
   return (
     <div className="min-h-[100dvh] flex flex-col w-full bg-background selection:bg-primary selection:text-primary-foreground relative overflow-hidden">

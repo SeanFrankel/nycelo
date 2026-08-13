@@ -10,8 +10,10 @@ import { getVoterToken } from "@/lib/voter";
 import { parseEvidenceFiles, EvidenceAggregate, ParseOutcome } from "@/lib/evidence";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload, MapPin, CheckCircle2, AlertCircle, Info, FileJson, Camera, X } from "lucide-react";
+import { Loader2, Upload, MapPin, CheckCircle2, AlertCircle, Info, FileJson, Camera, X, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { setAutoCheckinEnabled } from "@/lib/autoCheckin";
+import { useAutoCheckinState } from "@/hooks/useAutoCheckin";
 
 export default function Experience() {
   const token = getVoterToken();
@@ -135,6 +137,8 @@ export default function Experience() {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
+
+  const autoCheckin = useAutoCheckinState();
 
   const entries = experienceData?.entries.filter(e => e.tier !== "none") || [];
 
@@ -340,6 +344,74 @@ export default function Experience() {
                 "PING GPS"
               )}
             </Button>
+          </div>
+
+          <div className="border-4 border-border bg-card p-6 shadow-brutal mt-6">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <Radar className={cn("w-6 h-6", autoCheckin.status === "active" && "text-primary animate-pulse")} />
+                <h3 className="font-display font-black text-xl uppercase leading-tight">Auto Check-In</h3>
+              </div>
+              <button
+                role="switch"
+                aria-checked={autoCheckin.enabled}
+                aria-label="Enable auto check-in"
+                onClick={() => setAutoCheckinEnabled(!autoCheckin.enabled)}
+                className={cn(
+                  "relative shrink-0 w-16 h-8 border-2 border-border shadow-brutal-sm transition-colors",
+                  autoCheckin.enabled ? "bg-primary" : "bg-secondary"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 h-6 w-6 bg-background border-2 border-border transition-all",
+                    autoCheckin.enabled ? "left-8" : "left-0.5"
+                  )}
+                />
+              </button>
+            </div>
+            <p className="font-mono text-xs font-bold text-muted-foreground mb-3">
+              Zero taps: grant location once and NYCELO checks you in silently
+              whenever you use it — including new neighborhoods you move
+              through while the tab is open. Each check-in sends your current
+              coordinates to match a neighborhood; no location history is
+              stored or uploaded.
+            </p>
+            <div className="font-mono text-xs font-bold border-2 border-border p-2 bg-background flex items-center gap-2">
+              {autoCheckin.status === "off" && <span className="text-muted-foreground">OFF</span>}
+              {autoCheckin.status === "starting" && (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  <span>Waiting for location...</span>
+                </>
+              )}
+              {autoCheckin.status === "active" && (
+                <>
+                  <span className="w-2 h-2 bg-primary animate-pulse shrink-0" />
+                  <span>
+                    ACTIVE
+                    {autoCheckin.lastHoodName
+                      ? ` — last check-in: ${autoCheckin.lastHoodName}`
+                      : " — watching for NYC neighborhoods"}
+                  </span>
+                </>
+              )}
+              {autoCheckin.status === "unavailable" && (
+                <>
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Couldn't get a location fix yet — still trying in the background.</span>
+                </>
+              )}
+              {autoCheckin.status === "denied" && (
+                <>
+                  <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
+                  <span>Location permission denied — allow it in your browser settings, or use the manual button above.</span>
+                </>
+              )}
+              {autoCheckin.status === "unsupported" && (
+                <span className="text-muted-foreground">Your browser doesn't support location.</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
