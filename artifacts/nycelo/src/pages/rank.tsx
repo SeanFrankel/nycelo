@@ -236,7 +236,7 @@ export default function Rank() {
       </div>
 
       {/* Map Divider (Middle) */}
-      <div className="hidden md:block absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 w-64 h-64 brutal-card overflow-hidden">
+      <div className="hidden md:block absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 w-64 h-64 border-4 border-border shadow-brutal bg-card overflow-hidden">
         <DualMap a={a.neighborhood} b={b.neighborhood} />
         
         {/* VS Badge */}
