@@ -85,11 +85,13 @@ export const SubmitVoteBody = zod.object({
   "traitId": zod.number(),
   "neighborhoodAId": zod.number(),
   "neighborhoodBId": zod.number(),
-  "outcome": zod.enum(['a_wins', 'b_wins', 'draw', 'skip']).describe('skip means \"I don\'t know one of these\" — ratings untouched')
+  "outcome": zod.enum(['a_wins', 'b_wins', 'draw', 'skip']).describe('skip means \"I don\'t know one of these\" — ratings untouched'),
+  "voterToken": zod.string().nullish().describe('Anonymous voter token; enables experience-weighted voting')
 })
 
 export const SubmitVoteResponse = zod.object({
   "recorded": zod.boolean(),
+  "appliedWeight": zod.number().describe('K-factor multiplier applied to this vote (experience-based)'),
   "a": zod.object({
   "neighborhoodId": zod.number(),
   "name": zod.string(),
@@ -181,6 +183,109 @@ export const GetNeighborhoodResponse = zod.object({
   "losses": zod.number(),
   "draws": zod.number()
 }))
+})
+
+
+/**
+ * @summary List all neighborhoods (id, name, borough, coordinates)
+ */
+export const ListNeighborhoodsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "borough": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "photoUrl": zod.string().nullish(),
+  "blurb": zod.string().nullish()
+})
+export const ListNeighborhoodsResponse = zod.array(ListNeighborhoodsResponseItem)
+
+
+/**
+ * @summary Get the voter's experience map (confidence per neighborhood)
+ */
+export const GetExperienceQueryParams = zod.object({
+  "voterToken": zod.coerce.string()
+})
+
+export const GetExperienceResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "neighborhoodId": zod.number(),
+  "neighborhoodName": zod.string(),
+  "borough": zod.string(),
+  "visits": zod.number(),
+  "hours": zod.number(),
+  "photos": zod.number(),
+  "activities": zod.number(),
+  "checkins": zod.number(),
+  "confidence": zod.number().describe('0-100 experience confidence'),
+  "tier": zod.enum(['experienced', 'probable', 'minimal', 'none'])
+}))
+})
+
+
+/**
+ * @summary Submit derived experience aggregates (parsed client-side)
+ */
+export const SubmitExperienceBody = zod.object({
+  "voterToken": zod.string(),
+  "source": zod.string().optional().describe('Freeform label for where the evidence came from (timeline, gpx, photos...)'),
+  "entries": zod.array(zod.object({
+  "neighborhoodId": zod.number(),
+  "visits": zod.number().optional(),
+  "hours": zod.number().optional(),
+  "photos": zod.number().optional(),
+  "activities": zod.number().optional()
+}))
+})
+
+export const SubmitExperienceResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "neighborhoodId": zod.number(),
+  "neighborhoodName": zod.string(),
+  "borough": zod.string(),
+  "visits": zod.number(),
+  "hours": zod.number(),
+  "photos": zod.number(),
+  "activities": zod.number(),
+  "checkins": zod.number(),
+  "confidence": zod.number().describe('0-100 experience confidence'),
+  "tier": zod.enum(['experienced', 'probable', 'minimal', 'none'])
+}))
+})
+
+
+/**
+ * @summary Live "I'm here now" check-in via browser geolocation
+ */
+export const SubmitCheckinBody = zod.object({
+  "voterToken": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number()
+})
+
+export const SubmitCheckinResponse = zod.object({
+  "neighborhood": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "borough": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "photoUrl": zod.string().nullish(),
+  "blurb": zod.string().nullish()
+}),
+  "entry": zod.object({
+  "neighborhoodId": zod.number(),
+  "neighborhoodName": zod.string(),
+  "borough": zod.string(),
+  "visits": zod.number(),
+  "hours": zod.number(),
+  "photos": zod.number(),
+  "activities": zod.number(),
+  "checkins": zod.number(),
+  "confidence": zod.number().describe('0-100 experience confidence'),
+  "tier": zod.enum(['experienced', 'probable', 'minimal', 'none'])
+})
 })
 
 

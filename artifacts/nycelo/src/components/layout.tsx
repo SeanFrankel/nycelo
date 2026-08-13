@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter"
 import { cn } from "@/lib/utils"
-import { Trophy, ArrowRightLeft } from "lucide-react"
+import { Trophy, ArrowRightLeft, MapPin } from "lucide-react"
 import { ReactNode } from "react"
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -41,6 +41,16 @@ export function Layout({ children }: { children: ReactNode }) {
             >
               <Trophy className="w-4 h-4 hidden sm:block" />
               Leaderboard
+            </Link>
+            <Link 
+              href="/experience"
+              className={cn(
+                "transition-colors hover:text-primary flex items-center gap-2",
+                location === "/experience" ? "text-primary border-b-4 border-primary py-4" : "text-foreground"
+              )}
+            >
+              <MapPin className="w-4 h-4 hidden sm:block" />
+              Prove It
             </Link>
           </nav>
         </div>

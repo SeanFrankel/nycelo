@@ -13,4 +13,9 @@ export interface VoteInput {
   neighborhoodBId: number;
   /** skip means "I don't know one of these" — ratings untouched */
   outcome: VoteInputOutcome;
+  /**
+     * Anonymous voter token; enables experience-weighted voting
+     * @nullable
+     */
+  voterToken?: string | null;
 }

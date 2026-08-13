@@ -9,6 +9,8 @@ import type { RatingChange } from './ratingChange';
 
 export interface VoteResult {
   recorded: boolean;
+  /** K-factor multiplier applied to this vote (experience-based) */
+  appliedWeight: number;
   a: RatingChange;
   b: RatingChange;
 }

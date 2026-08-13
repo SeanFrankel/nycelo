@@ -68,6 +68,11 @@ export interface VoteInput {
   neighborhoodBId: number;
   /** skip means "I don't know one of these" — ratings untouched */
   outcome: VoteInputOutcome;
+  /**
+     * Anonymous voter token; enables experience-weighted voting
+     * @nullable
+     */
+  voterToken?: string | null;
 }
 
 export interface RatingChange {
@@ -83,8 +88,64 @@ export interface RatingChange {
 
 export interface VoteResult {
   recorded: boolean;
+  /** K-factor multiplier applied to this vote (experience-based) */
+  appliedWeight: number;
   a: RatingChange;
   b: RatingChange;
+}
+
+export interface ExperienceEntryInput {
+  neighborhoodId: number;
+  visits?: number;
+  hours?: number;
+  photos?: number;
+  activities?: number;
+}
+
+export interface ExperienceInput {
+  voterToken: string;
+  /** Freeform label for where the evidence came from (timeline, gpx, photos...) */
+  source?: string;
+  entries: ExperienceEntryInput[];
+}
+
+export type ExperienceEntryTier = typeof ExperienceEntryTier[keyof typeof ExperienceEntryTier];
+
+
+export const ExperienceEntryTier = {
+  experienced: 'experienced',
+  probable: 'probable',
+  minimal: 'minimal',
+  none: 'none',
+} as const;
+
+export interface ExperienceEntry {
+  neighborhoodId: number;
+  neighborhoodName: string;
+  borough: string;
+  visits: number;
+  hours: number;
+  photos: number;
+  activities: number;
+  checkins: number;
+  /** 0-100 experience confidence */
+  confidence: number;
+  tier: ExperienceEntryTier;
+}
+
+export interface ExperienceMap {
+  entries: ExperienceEntry[];
+}
+
+export interface CheckinInput {
+  voterToken: string;
+  lat: number;
+  lng: number;
+}
+
+export interface CheckinResult {
+  neighborhood: Neighborhood;
+  entry: ExperienceEntry;
 }
 
 export interface LeaderboardEntry {
@@ -152,5 +213,9 @@ limit?: number;
 
 export type GetNeighborhoodParams = {
 id: number;
+};
+
+export type GetExperienceParams = {
+voterToken: string;
 };
 

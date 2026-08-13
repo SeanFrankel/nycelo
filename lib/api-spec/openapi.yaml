@@ -20,6 +20,8 @@ tags:
     description: Rankings and leaderboards
   - name: showcase
     description: Home page showcase data
+  - name: experience
+    description: Voter neighborhood experience evidence
 paths:
   /healthz:
     get:
@@ -156,6 +158,85 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+  /neighborhoods:
+    get:
+      operationId: listNeighborhoods
+      tags: [leaderboard]
+      summary: List all neighborhoods (id, name, borough, coordinates)
+      responses:
+        "200":
+          description: All neighborhoods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Neighborhood"
+  /experience:
+    get:
+      operationId: getExperience
+      tags: [experience]
+      summary: Get the voter's experience map (confidence per neighborhood)
+      parameters:
+        - name: voterToken
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Experience entries for this voter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExperienceMap"
+    post:
+      operationId: submitExperience
+      tags: [experience]
+      summary: Submit derived experience aggregates (parsed client-side)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExperienceInput"
+      responses:
+        "200":
+          description: Updated experience map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExperienceMap"
+        "400":
+          description: Invalid submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /checkin:
+    post:
+      operationId: submitCheckin
+      tags: [experience]
+      summary: Live "I'm here now" check-in via browser geolocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckinInput"
+      responses:
+        "200":
+          description: Matched neighborhood and updated entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckinResult"
+        "400":
+          description: Not inside any known neighborhood or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
   /showcase:
     get:
       operationId: getShowcase
@@ -247,6 +328,9 @@ components:
           type: string
           enum: [a_wins, b_wins, draw, skip]
           description: skip means "I don't know one of these" — ratings untouched
+        voterToken:
+          type: ["string", "null"]
+          description: Anonymous voter token; enables experience-weighted voting
       required: [traitId, neighborhoodAId, neighborhoodBId, outcome]
     RatingChange:
       type: object
@@ -262,11 +346,77 @@ components:
       type: object
       properties:
         recorded: { type: boolean }
+        appliedWeight:
+          type: number
+          description: K-factor multiplier applied to this vote (experience-based)
         a:
           $ref: "#/components/schemas/RatingChange"
         b:
           $ref: "#/components/schemas/RatingChange"
-      required: [recorded, a, b]
+      required: [recorded, appliedWeight, a, b]
+    ExperienceEntryInput:
+      type: object
+      properties:
+        neighborhoodId: { type: number }
+        visits: { type: number }
+        hours: { type: number }
+        photos: { type: number }
+        activities: { type: number }
+      required: [neighborhoodId]
+    ExperienceInput:
+      type: object
+      properties:
+        voterToken: { type: string }
+        source:
+          type: string
+          description: Freeform label for where the evidence came from (timeline, gpx, photos...)
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExperienceEntryInput"
+      required: [voterToken, entries]
+    ExperienceEntry:
+      type: object
+      properties:
+        neighborhoodId: { type: number }
+        neighborhoodName: { type: string }
+        borough: { type: string }
+        visits: { type: number }
+        hours: { type: number }
+        photos: { type: number }
+        activities: { type: number }
+        checkins: { type: number }
+        confidence:
+          type: number
+          description: 0-100 experience confidence
+        tier:
+          type: string
+          enum: [experienced, probable, minimal, none]
+      required:
+        [neighborhoodId, neighborhoodName, borough, visits, hours, photos, activities, checkins, confidence, tier]
+    ExperienceMap:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExperienceEntry"
+      required: [entries]
+    CheckinInput:
+      type: object
+      properties:
+        voterToken: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+      required: [voterToken, lat, lng]
+    CheckinResult:
+      type: object
+      properties:
+        neighborhood:
+          $ref: "#/components/schemas/Neighborhood"
+        entry:
+          $ref: "#/components/schemas/ExperienceEntry"
+      required: [neighborhood, entry]
     LeaderboardEntry:
       type: object
       properties:

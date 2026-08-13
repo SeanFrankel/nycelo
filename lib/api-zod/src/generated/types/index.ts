@@ -7,6 +7,14 @@
  */
 
 export * from './apiErrorResponse';
+export * from './checkinInput';
+export * from './checkinResult';
+export * from './experienceEntry';
+export * from './experienceEntryInput';
+export * from './experienceEntryTier';
+export * from './experienceInput';
+export * from './experienceMap';
+export * from './getExperienceParams';
 export * from './getLeaderboardParams';
 export * from './getMatchupParams';
 export * from './getNeighborhoodParams';

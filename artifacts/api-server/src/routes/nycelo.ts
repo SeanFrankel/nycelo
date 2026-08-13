@@ -6,6 +6,8 @@ import {
   traitsTable,
   ratingsTable,
   votesTable,
+  votersTable,
+  experienceTable,
 } from "@workspace/db";
 import {
   ListTraitsResponse,
@@ -19,8 +21,21 @@ import {
   GetStatsResponse,
   GetNeighborhoodQueryParams,
   GetNeighborhoodResponse,
+  ListNeighborhoodsResponse,
+  GetExperienceQueryParams,
+  GetExperienceResponse,
+  SubmitExperienceBody,
+  SubmitExperienceResponse,
+  SubmitCheckinBody,
+  SubmitCheckinResponse,
 } from "@workspace/api-zod";
 import { updateElo } from "../lib/elo";
+import {
+  clampAggregates,
+  confidenceFor,
+  voteWeight,
+  toEntryShape,
+} from "../lib/experience";
 
 const router: IRouter = Router();
 
@@ -73,6 +88,73 @@ async function rankOf(traitId: number, rating: number): Promise<number | null> {
       and(eq(ratingsTable.traitId, traitId), sql`${ratingsTable.rating} > ${rating}`),
     );
   return (row?.count ?? 0) + 1;
+}
+
+const TOKEN_RE = /^[A-Za-z0-9_-]{8,128}$/;
+
+/**
+ * Lightweight in-memory rate limiting for the self-attested evidence
+ * endpoints. Experience aggregates are inherently self-attested (files are
+ * parsed client-side by design — raw data never leaves the device), so the
+ * server can't prove them; these limits blunt bulk forgery and replay,
+ * and the 2.0x weight ceiling bounds the damage any one voter can do.
+ */
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimited(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(key);
+  if (!bucket || bucket.resetAt < now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > max;
+}
+
+// Periodic sweep so the map can't grow unbounded.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets) {
+    if (bucket.resetAt < now) rateBuckets.delete(key);
+  }
+}, 60_000).unref();
+
+/** Per voter+neighborhood check-in cooldown (30 min). */
+const CHECKIN_COOLDOWN_MS = 30 * 60 * 1000;
+const lastCheckin = new Map<string, number>();
+
+async function getOrCreateVoter(token: string) {
+  const [existing] = await db
+    .select()
+    .from(votersTable)
+    .where(eq(votersTable.token, token));
+  if (existing) return existing;
+  const [created] = await db
+    .insert(votersTable)
+    .values({ token })
+    .onConflictDoNothing()
+    .returning();
+  if (created) return created;
+  const [again] = await db
+    .select()
+    .from(votersTable)
+    .where(eq(votersTable.token, token));
+  return again!;
+}
+
+async function experienceEntriesFor(voterId: number) {
+  const rows = await db
+    .select({ e: experienceTable, n: neighborhoodsTable })
+    .from(experienceTable)
+    .innerJoin(
+      neighborhoodsTable,
+      eq(experienceTable.neighborhoodId, neighborhoodsTable.id),
+    )
+    .where(eq(experienceTable.voterId, voterId));
+  return rows
+    .map((row) => toEntryShape(row.e, row.n))
+    .sort((x, y) => y.confidence - x.confidence);
 }
 
 router.get("/traits", async (_req, res): Promise<void> => {
@@ -166,7 +248,8 @@ router.post("/votes", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { traitId, neighborhoodAId, neighborhoodBId, outcome } = parsed.data;
+  const { traitId, neighborhoodAId, neighborhoodBId, outcome, voterToken } =
+    parsed.data;
   if (neighborhoodAId === neighborhoodBId) {
     res.status(400).json({ error: "A matchup needs two different neighborhoods" });
     return;
@@ -188,6 +271,31 @@ router.post("/votes", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Unknown trait or neighborhood" });
     return;
   }
+
+  // Resolve voter + experience-based weight (default 0.25 floor weight
+  // comes from zero confidence; unidentified voters get the same floor).
+  let voterId: number | null = null;
+  let confA = 0;
+  let confB = 0;
+  if (voterToken && TOKEN_RE.test(voterToken)) {
+    const voter = await getOrCreateVoter(voterToken);
+    voterId = voter.id;
+    const evidence = await db
+      .select()
+      .from(experienceTable)
+      .where(
+        and(
+          eq(experienceTable.voterId, voter.id),
+          sql`${experienceTable.neighborhoodId} in (${neighborhoodAId}, ${neighborhoodBId})`,
+        ),
+      );
+    for (const row of evidence) {
+      const conf = confidenceFor(row);
+      if (row.neighborhoodId === neighborhoodAId) confA = conf;
+      if (row.neighborhoodId === neighborhoodBId) confB = conf;
+    }
+  }
+  const weight = voteWeight(confA, confB);
 
   // Ensure rating rows exist before entering the transaction.
   await getOrCreateRating(neighborhoodAId, traitId);
@@ -218,6 +326,8 @@ router.post("/votes", async (req, res): Promise<void> => {
       neighborhoodAId,
       neighborhoodBId,
       outcome,
+      voterId,
+      weight,
     });
 
     let newA = ratingA.rating;
@@ -225,7 +335,7 @@ router.post("/votes", async (req, res): Promise<void> => {
 
     if (outcome !== "skip") {
       const scoreA = outcome === "a_wins" ? 1 : outcome === "b_wins" ? 0 : 0.5;
-      const updated = updateElo(ratingA.rating, ratingB.rating, scoreA);
+      const updated = updateElo(ratingA.rating, ratingB.rating, scoreA, weight);
       newA = updated.newA;
       newB = updated.newB;
 
@@ -261,6 +371,7 @@ router.post("/votes", async (req, res): Promise<void> => {
   res.json(
     SubmitVoteResponse.parse({
       recorded: outcome !== "skip",
+      appliedWeight: weight,
       a: {
         neighborhoodId: neighborhoodAId,
         name: na.name,
@@ -376,6 +487,167 @@ router.get("/neighborhood", async (req, res): Promise<void> => {
   );
 
   res.json(GetNeighborhoodResponse.parse({ neighborhood, traitRankings }));
+});
+
+router.get("/neighborhoods", async (_req, res): Promise<void> => {
+  const hoods = await db
+    .select()
+    .from(neighborhoodsTable)
+    .orderBy(neighborhoodsTable.name);
+  res.json(ListNeighborhoodsResponse.parse(hoods));
+});
+
+router.get("/experience", async (req, res): Promise<void> => {
+  const query = GetExperienceQueryParams.safeParse(req.query);
+  if (!query.success || !TOKEN_RE.test(query.data.voterToken)) {
+    res.status(400).json({ error: "Invalid voter token" });
+    return;
+  }
+  const [voter] = await db
+    .select()
+    .from(votersTable)
+    .where(eq(votersTable.token, query.data.voterToken));
+  if (!voter) {
+    res.json(GetExperienceResponse.parse({ entries: [] }));
+    return;
+  }
+  res.json(
+    GetExperienceResponse.parse({
+      entries: await experienceEntriesFor(voter.id),
+    }),
+  );
+});
+
+router.post("/experience", async (req, res): Promise<void> => {
+  const parsed = SubmitExperienceBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { voterToken, entries } = parsed.data;
+  if (!TOKEN_RE.test(voterToken)) {
+    res.status(400).json({ error: "Invalid voter token" });
+    return;
+  }
+  if (entries.length > 500) {
+    res.status(400).json({ error: "Too many entries in one submission" });
+    return;
+  }
+  if (
+    rateLimited(`exp:${voterToken}`, 10, 60 * 60 * 1000) ||
+    rateLimited(`exp-ip:${req.ip}`, 30, 60 * 60 * 1000)
+  ) {
+    res.status(429).json({ error: "Too many imports — try again later" });
+    return;
+  }
+
+  const voter = await getOrCreateVoter(voterToken);
+
+  for (const entry of entries) {
+    const clamped = clampAggregates(entry);
+    const [hood] = await db
+      .select({ id: neighborhoodsTable.id })
+      .from(neighborhoodsTable)
+      .where(eq(neighborhoodsTable.id, entry.neighborhoodId));
+    if (!hood) continue;
+    // Merge with greatest() so re-importing the same file is idempotent
+    // rather than double-counting.
+    await db
+      .insert(experienceTable)
+      .values({ voterId: voter.id, neighborhoodId: hood.id, ...clamped })
+      .onConflictDoUpdate({
+        target: [experienceTable.voterId, experienceTable.neighborhoodId],
+        set: {
+          visits: sql`greatest(${experienceTable.visits}, ${clamped.visits})`,
+          hours: sql`greatest(${experienceTable.hours}, ${clamped.hours})`,
+          photos: sql`greatest(${experienceTable.photos}, ${clamped.photos})`,
+          activities: sql`greatest(${experienceTable.activities}, ${clamped.activities})`,
+          updatedAt: sql`now()`,
+        },
+      });
+  }
+
+  res.json(
+    SubmitExperienceResponse.parse({
+      entries: await experienceEntriesFor(voter.id),
+    }),
+  );
+});
+
+router.post("/checkin", async (req, res): Promise<void> => {
+  const parsed = SubmitCheckinBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { voterToken, lat, lng } = parsed.data;
+  if (!TOKEN_RE.test(voterToken)) {
+    res.status(400).json({ error: "Invalid voter token" });
+    return;
+  }
+
+  // Nearest neighborhood within ~2km (matches client-side matching cap).
+  const [nearest] = await db
+    .select({
+      n: neighborhoodsTable,
+      dist: sql<number>`
+        6371 * 2 * asin(sqrt(
+          pow(sin(radians((${neighborhoodsTable.lat} - ${lat}) / 2)), 2) +
+          cos(radians(${lat})) * cos(radians(${neighborhoodsTable.lat})) *
+          pow(sin(radians((${neighborhoodsTable.lng} - ${lng}) / 2)), 2)
+        ))`.as("dist"),
+    })
+    .from(neighborhoodsTable)
+    .orderBy(sql`dist`)
+    .limit(1);
+  if (!nearest || nearest.dist > 2) {
+    res
+      .status(400)
+      .json({ error: "You don't seem to be in any NYC neighborhood we know" });
+    return;
+  }
+
+  if (rateLimited(`chk-ip:${req.ip}`, 20, 60 * 60 * 1000)) {
+    res.status(429).json({ error: "Too many check-ins — try again later" });
+    return;
+  }
+  const cooldownKey = `${voterToken}:${nearest.n.id}`;
+  const last = lastCheckin.get(cooldownKey);
+  if (last && Date.now() - last < CHECKIN_COOLDOWN_MS) {
+    res.status(429).json({
+      error: "Already checked in here recently — come back in a bit",
+    });
+    return;
+  }
+  lastCheckin.set(cooldownKey, Date.now());
+
+  const voter = await getOrCreateVoter(voterToken);
+  await db
+    .insert(experienceTable)
+    .values({ voterId: voter.id, neighborhoodId: nearest.n.id, checkins: 1 })
+    .onConflictDoUpdate({
+      target: [experienceTable.voterId, experienceTable.neighborhoodId],
+      set: {
+        checkins: sql`least(${experienceTable.checkins} + 1, 1000)`,
+        updatedAt: sql`now()`,
+      },
+    });
+
+  const [row] = await db
+    .select()
+    .from(experienceTable)
+    .where(
+      and(
+        eq(experienceTable.voterId, voter.id),
+        eq(experienceTable.neighborhoodId, nearest.n.id),
+      ),
+    );
+  res.json(
+    SubmitCheckinResponse.parse({
+      neighborhood: nearest.n,
+      entry: toEntryShape(row!, nearest.n),
+    }),
+  );
 });
 
 router.get("/showcase", async (_req, res): Promise<void> => {

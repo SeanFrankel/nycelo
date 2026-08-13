@@ -1,2 +1,3 @@
 - [OpenAPI codegen gotchas](openapi-codegen-gotchas.md) — no `type: integer` in bodies/responses (zod v4-only output); prefer query params over path params to avoid type-name collisions.
 - [Read-only GET endpoints](read-only-get-endpoints.md) — GETs must never create rating rows; leaderboard shows every rating row, so viewing a page could otherwise alter rankings.
+- [Experience Score trust model](experience-score-trust-model.md) — evidence aggregates are self-attested by design (privacy-first, client-side parsing); abuse is bounded, not prevented — keep weight ceiling, caps, rate limits.

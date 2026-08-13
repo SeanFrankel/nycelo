@@ -21,12 +21,18 @@ import type {
 
 import type {
   ApiErrorResponse,
+  CheckinInput,
+  CheckinResult,
+  ExperienceInput,
+  ExperienceMap,
+  GetExperienceParams,
   GetLeaderboardParams,
   GetMatchupParams,
   GetNeighborhoodParams,
   HealthStatus,
   Leaderboard,
   Matchup,
+  Neighborhood,
   NeighborhoodDetail,
   ShowcaseEntry,
   SiteStats,
@@ -539,6 +545,309 @@ export function useGetNeighborhood<TData = Awaited<ReturnType<typeof getNeighbor
 
 
 
+
+export const getListNeighborhoodsUrl = () => {
+
+
+
+
+  return `/api/neighborhoods`
+}
+
+/**
+ * @summary List all neighborhoods (id, name, borough, coordinates)
+ */
+export const listNeighborhoods = async ( options?: Parameters<typeof customFetch>[1]): Promise<Neighborhood[]> => {
+
+  return customFetch<Neighborhood[]>(getListNeighborhoodsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNeighborhoodsQueryKey = () => {
+    return [
+    `/api/neighborhoods`
+    ] as const;
+    }
+
+
+export const getListNeighborhoodsQueryOptions = <TData = Awaited<ReturnType<typeof listNeighborhoods>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNeighborhoods>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNeighborhoodsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNeighborhoods>>> = ({ signal }) => listNeighborhoods({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNeighborhoods>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNeighborhoodsQueryResult = NonNullable<Awaited<ReturnType<typeof listNeighborhoods>>>
+export type ListNeighborhoodsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all neighborhoods (id, name, borough, coordinates)
+ */
+
+export function useListNeighborhoods<TData = Awaited<ReturnType<typeof listNeighborhoods>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNeighborhoods>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNeighborhoodsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetExperienceUrl = (params: GetExperienceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/experience?${stringifiedParams}` : `/api/experience`
+}
+
+/**
+ * @summary Get the voter's experience map (confidence per neighborhood)
+ */
+export const getExperience = async (params: GetExperienceParams, options?: Parameters<typeof customFetch>[1]): Promise<ExperienceMap> => {
+
+  return customFetch<ExperienceMap>(getGetExperienceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetExperienceQueryKey = (params?: GetExperienceParams,) => {
+    return [
+    `/api/experience`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetExperienceQueryOptions = <TData = Awaited<ReturnType<typeof getExperience>>, TError = ErrorType<unknown>>(params: GetExperienceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getExperience>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetExperienceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getExperience>>> = ({ signal }) => getExperience(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getExperience>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetExperienceQueryResult = NonNullable<Awaited<ReturnType<typeof getExperience>>>
+export type GetExperienceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the voter's experience map (confidence per neighborhood)
+ */
+
+export function useGetExperience<TData = Awaited<ReturnType<typeof getExperience>>, TError = ErrorType<unknown>>(
+ params: GetExperienceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getExperience>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetExperienceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitExperienceUrl = () => {
+
+
+
+
+  return `/api/experience`
+}
+
+/**
+ * @summary Submit derived experience aggregates (parsed client-side)
+ */
+export const submitExperience = async (experienceInput: ExperienceInput, options?: Parameters<typeof customFetch>[1]): Promise<ExperienceMap> => {
+
+  return customFetch<ExperienceMap>(getSubmitExperienceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(experienceInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitExperienceMutationOptions = <TError = ErrorType<ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitExperience>>, TError,{data: BodyType<ExperienceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitExperience>>, TError,{data: BodyType<ExperienceInput>}, TContext> => {
+
+const mutationKey = ['submitExperience'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitExperience>>, {data: BodyType<ExperienceInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitExperience(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitExperienceMutationResult = NonNullable<Awaited<ReturnType<typeof submitExperience>>>
+    export type SubmitExperienceMutationBody = BodyType<ExperienceInput>
+    export type SubmitExperienceMutationError = ErrorType<ApiErrorResponse>
+
+    /**
+ * @summary Submit derived experience aggregates (parsed client-side)
+ */
+export const useSubmitExperience = <TError = ErrorType<ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitExperience>>, TError,{data: BodyType<ExperienceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitExperience>>,
+        TError,
+        {data: BodyType<ExperienceInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitExperienceMutationOptions(options));
+    }
+
+export const getSubmitCheckinUrl = () => {
+
+
+
+
+  return `/api/checkin`
+}
+
+/**
+ * @summary Live "I'm here now" check-in via browser geolocation
+ */
+export const submitCheckin = async (checkinInput: CheckinInput, options?: Parameters<typeof customFetch>[1]): Promise<CheckinResult> => {
+
+  return customFetch<CheckinResult>(getSubmitCheckinUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(checkinInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitCheckinMutationOptions = <TError = ErrorType<ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCheckin>>, TError,{data: BodyType<CheckinInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitCheckin>>, TError,{data: BodyType<CheckinInput>}, TContext> => {
+
+const mutationKey = ['submitCheckin'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitCheckin>>, {data: BodyType<CheckinInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitCheckin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitCheckinMutationResult = NonNullable<Awaited<ReturnType<typeof submitCheckin>>>
+    export type SubmitCheckinMutationBody = BodyType<CheckinInput>
+    export type SubmitCheckinMutationError = ErrorType<ApiErrorResponse>
+
+    /**
+ * @summary Live "I'm here now" check-in via browser geolocation
+ */
+export const useSubmitCheckin = <TError = ErrorType<ApiErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCheckin>>, TError,{data: BodyType<CheckinInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitCheckin>>,
+        TError,
+        {data: BodyType<CheckinInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitCheckinMutationOptions(options));
+    }
 
 export const getGetShowcaseUrl = () => {
 

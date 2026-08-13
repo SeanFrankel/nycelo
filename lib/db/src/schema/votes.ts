@@ -1,4 +1,12 @@
-import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  serial,
+  integer,
+  text,
+  timestamp,
+  doublePrecision,
+} from "drizzle-orm/pg-core";
+import { votersTable } from "./voters";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { neighborhoodsTable } from "./neighborhoods";
@@ -16,6 +24,8 @@ export const votesTable = pgTable("votes", {
     .notNull()
     .references(() => neighborhoodsTable.id),
   outcome: text("outcome").notNull(), // a_wins | b_wins | draw | skip
+  voterId: integer("voter_id").references(() => votersTable.id),
+  weight: doublePrecision("weight").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

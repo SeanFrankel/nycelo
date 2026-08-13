@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react"
-import { useGetMatchup, useSubmitVote, getGetMatchupQueryKey } from "@workspace/api-client-react"
+import { Link } from "wouter"
+import { useGetMatchup, useSubmitVote, getGetMatchupQueryKey, useGetExperience, getGetExperienceQueryKey } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { DualMap } from "@/components/Map"
-import { Loader2, AlertCircle, ArrowRight, SkipForward } from "lucide-react"
+import { Loader2, AlertCircle, ArrowRight, SkipForward, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getVoterToken } from "@/lib/voter"
 
 export default function Rank() {
   const queryClient = useQueryClient()
+  const token = getVoterToken()
   
   // Need a state to show the result briefly before loading next
   const [result, setResult] = useState<{
@@ -15,7 +18,8 @@ export default function Rank() {
     bWins: boolean,
     draw: boolean,
     aRatingChange: number,
-    bRatingChange: number
+    bRatingChange: number,
+    appliedWeight: number
   } | null>(null)
   
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -26,6 +30,23 @@ export default function Rank() {
       queryKey: getGetMatchupQueryKey()
     }
   })
+
+  const { data: experience } = useGetExperience(
+    { voterToken: token }, 
+    {
+      query: {
+        queryKey: getGetExperienceQueryKey({ voterToken: token }),
+        staleTime: 5 * 60 * 1000
+      }
+    }
+  )
+
+  const getTier = (hoodId: number) => {
+    if (!experience) return null;
+    const entry = experience.entries.find(e => e.neighborhoodId === hoodId);
+    if (entry && entry.tier !== "none") return entry.tier;
+    return null;
+  }
 
   const submitVote = useSubmitVote()
 
@@ -41,6 +62,7 @@ export default function Rank() {
           neighborhoodAId: matchup.a.neighborhood.id,
           neighborhoodBId: matchup.b.neighborhood.id,
           outcome,
+          voterToken: token
         }
       },
       {
@@ -57,6 +79,7 @@ export default function Rank() {
               draw: outcome === "draw",
               aRatingChange: voteResult.a.newRating - voteResult.a.oldRating,
               bRatingChange: voteResult.b.newRating - voteResult.b.oldRating,
+              appliedWeight: voteResult.appliedWeight
             })
             
             setTimeout(() => {
@@ -100,6 +123,9 @@ export default function Rank() {
 
   const { a, b, trait } = matchup
 
+  const aTier = getTier(a.neighborhood.id);
+  const bTier = getTier(b.neighborhood.id);
+
   return (
     <div className="flex-1 flex flex-col md:flex-row relative bg-background">
       
@@ -138,6 +164,15 @@ export default function Rank() {
             <span className="inline-block bg-primary text-primary-foreground font-mono font-bold px-2 py-1 text-xs uppercase border-2 border-border mb-2 shadow-brutal-sm">
               {a.neighborhood.borough}
             </span>
+            {aTier && (
+              <span className={cn(
+                "inline-block font-mono font-bold px-2 py-1 text-[10px] uppercase border-2 border-border mb-2 shadow-brutal-sm ml-2",
+                aTier === "experienced" ? "bg-primary text-primary-foreground" : 
+                aTier === "probable" ? "bg-mta-blue text-white" : "bg-secondary text-secondary-foreground"
+              )}>
+                {aTier}
+              </span>
+            )}
             <h2 className="font-display font-black text-5xl md:text-7xl uppercase tracking-tighter leading-none mb-2 text-foreground" style={{ textShadow: '2px 2px 0px white, -1px -1px 0px white, 1px -1px 0px white, -1px 1px 0px white, 1px 1px 0px white' }}>
               {a.neighborhood.name}
             </h2>
@@ -179,6 +214,11 @@ export default function Rank() {
                 )}>
                   {result.aRatingChange > 0 ? "+" : ""}{Math.round(result.aRatingChange)}
                 </span>
+                {result.appliedWeight !== 1 && (
+                  <div className="font-mono text-xs block mt-4 border-t-2 border-border/50 pt-2 font-bold opacity-90 text-primary">
+                    {result.appliedWeight}x XP MULTIPLIER
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -224,6 +264,15 @@ export default function Rank() {
             <span className="inline-block bg-mta-blue text-white font-mono font-bold px-2 py-1 text-xs uppercase border-2 border-border mb-2 shadow-brutal-sm">
               {b.neighborhood.borough}
             </span>
+            {bTier && (
+              <span className={cn(
+                "inline-block font-mono font-bold px-2 py-1 text-[10px] uppercase border-2 border-border mb-2 shadow-brutal-sm ml-2",
+                bTier === "experienced" ? "bg-primary text-primary-foreground" : 
+                bTier === "probable" ? "bg-mta-blue text-white" : "bg-secondary text-secondary-foreground"
+              )}>
+                {bTier}
+              </span>
+            )}
             <h2 className="font-display font-black text-5xl md:text-7xl uppercase tracking-tighter leading-none mb-2 text-foreground" style={{ textShadow: '2px 2px 0px white, -1px -1px 0px white, 1px -1px 0px white, -1px 1px 0px white, 1px 1px 0px white' }}>
               {b.neighborhood.name}
             </h2>
@@ -265,6 +314,11 @@ export default function Rank() {
                 )}>
                   {result.bRatingChange > 0 ? "+" : ""}{Math.round(result.bRatingChange)}
                 </span>
+                {result.appliedWeight !== 1 && (
+                  <div className="font-mono text-xs block mt-4 border-t-2 border-border/50 pt-2 font-bold opacity-90 text-mta-blue">
+                    {result.appliedWeight}x XP MULTIPLIER
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -290,6 +344,13 @@ export default function Rank() {
         >
           <SkipForward className="w-4 h-4" />
         </Button>
+      </div>
+
+      <div className="fixed bottom-4 right-4 z-40 hidden md:block">
+        <Link href="/experience" className="group flex items-center gap-2 bg-background border-2 border-border shadow-brutal-sm px-3 py-2 text-xs font-mono font-bold uppercase hover:bg-primary hover:text-primary-foreground transition-all">
+          <MapPin className="w-3 h-3 group-hover:animate-bounce" />
+          Boost Vote Power
+        </Link>
       </div>
 
     </div>
