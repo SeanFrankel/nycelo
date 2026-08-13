@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "NYCELO"
+description = "NYCELO is an interactive web app that crowdsources rankings of NYC neighborhoods across traits like dining, walkability, subway access, nightlife, and rent value using head-to-head ELO matchups. Users vote in fun two-neighborhood duels and browse live per-trait leaderboards."
+version = "1.0.0"
+id = "artifacts/nycelo"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23717
+
+[services.development]
+run = "pnpm --filter @workspace/nycelo run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/nycelo", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/nycelo/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23717"
+BASE_PATH = "/"

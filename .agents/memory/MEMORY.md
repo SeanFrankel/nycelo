@@ -1,0 +1,1 @@
+- [OpenAPI codegen gotchas](openapi-codegen-gotchas.md) — no `type: integer` in bodies/responses (zod v4-only output); prefer query params over path params to avoid type-name collisions.

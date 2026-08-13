@@ -3,13 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: NYCELO API — NYC neighborhood ELO rankings
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: traits
+    description: Ranking traits
+  - name: matchups
+    description: Head-to-head neighborhood matchups
+  - name: votes
+    description: Vote submission
+  - name: leaderboard
+    description: Rankings and leaderboards
+  - name: showcase
+    description: Home page showcase data
 paths:
   /healthz:
     get:
@@ -24,6 +34,130 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /traits:
+    get:
+      operationId: listTraits
+      tags: [traits]
+      summary: List all ranking traits
+      responses:
+        "200":
+          description: List of traits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trait"
+  /matchup:
+    get:
+      operationId: getMatchup
+      tags: [matchups]
+      summary: Get a head-to-head matchup for a random or specified trait
+      parameters:
+        - name: traitSlug
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Restrict the matchup to this trait; otherwise a random trait is chosen
+      responses:
+        "200":
+          description: A matchup between two neighborhoods for one trait
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Matchup"
+        "404":
+          description: No matchup available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /votes:
+    post:
+      operationId: submitVote
+      tags: [votes]
+      summary: Submit the outcome of a matchup (win, draw, or skip)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoteInput"
+      responses:
+        "200":
+          description: Vote processed; returns updated ratings for both neighborhoods
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoteResult"
+        "400":
+          description: Invalid vote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Get ranked neighborhoods for a trait
+      parameters:
+        - name: traitSlug
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: borough
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by borough name
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Ranked list of neighborhoods for the trait
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Leaderboard"
+        "404":
+          description: Trait not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+  /showcase:
+    get:
+      operationId: getShowcase
+      tags: [showcase]
+      summary: Current top neighborhood for each trait (home page revolving showcase)
+      responses:
+        "200":
+          description: Top pick per trait
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShowcaseEntry"
+  /stats:
+    get:
+      operationId: getStats
+      tags: [showcase]
+      summary: Global site stats (total votes, neighborhoods, traits)
+      responses:
+        "200":
+          description: Global stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteStats"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +167,120 @@ components:
           type: string
       required:
         - status
-
+    ApiErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    Trait:
+      type: object
+      properties:
+        id: { type: number }
+        slug: { type: string }
+        name: { type: string }
+        description: { type: string }
+        emojiHint: { type: ["string", "null"] }
+        totalVotes: { type: number }
+      required: [id, slug, name, description, totalVotes]
+    Neighborhood:
+      type: object
+      properties:
+        id: { type: number }
+        name: { type: string }
+        borough: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        photoUrl: { type: ["string", "null"] }
+        blurb: { type: ["string", "null"] }
+      required: [id, name, borough, lat, lng]
+    MatchupSide:
+      type: object
+      properties:
+        neighborhood:
+          $ref: "#/components/schemas/Neighborhood"
+        rating: { type: number }
+        rank: { type: ["number", "null"] }
+        gamesPlayed: { type: number }
+      required: [neighborhood, rating, gamesPlayed]
+    Matchup:
+      type: object
+      properties:
+        trait:
+          $ref: "#/components/schemas/Trait"
+        a:
+          $ref: "#/components/schemas/MatchupSide"
+        b:
+          $ref: "#/components/schemas/MatchupSide"
+      required: [trait, a, b]
+    VoteInput:
+      type: object
+      properties:
+        traitId: { type: number }
+        neighborhoodAId: { type: number }
+        neighborhoodBId: { type: number }
+        outcome:
+          type: string
+          enum: [a_wins, b_wins, draw, skip]
+          description: skip means "I don't know one of these" — ratings untouched
+      required: [traitId, neighborhoodAId, neighborhoodBId, outcome]
+    RatingChange:
+      type: object
+      properties:
+        neighborhoodId: { type: number }
+        name: { type: string }
+        oldRating: { type: number }
+        newRating: { type: number }
+        oldRank: { type: ["number", "null"] }
+        newRank: { type: ["number", "null"] }
+      required: [neighborhoodId, name, oldRating, newRating]
+    VoteResult:
+      type: object
+      properties:
+        recorded: { type: boolean }
+        a:
+          $ref: "#/components/schemas/RatingChange"
+        b:
+          $ref: "#/components/schemas/RatingChange"
+      required: [recorded, a, b]
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank: { type: number }
+        neighborhood:
+          $ref: "#/components/schemas/Neighborhood"
+        rating: { type: number }
+        gamesPlayed: { type: number }
+        wins: { type: number }
+        losses: { type: number }
+        draws: { type: number }
+      required: [rank, neighborhood, rating, gamesPlayed, wins, losses, draws]
+    Leaderboard:
+      type: object
+      properties:
+        trait:
+          $ref: "#/components/schemas/Trait"
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+      required: [trait, entries]
+    ShowcaseEntry:
+      type: object
+      properties:
+        trait:
+          $ref: "#/components/schemas/Trait"
+        topNeighborhood:
+          anyOf:
+            - $ref: "#/components/schemas/Neighborhood"
+            - type: "null"
+        rating: { type: ["number", "null"] }
+        gamesPlayed: { type: ["number", "null"] }
+      required: [trait]
+    SiteStats:
+      type: object
+      properties:
+        totalVotes: { type: number }
+        totalNeighborhoods: { type: number }
+        totalTraits: { type: number }
+      required: [totalVotes, totalNeighborhoods, totalTraits]

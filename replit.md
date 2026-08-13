@@ -1,6 +1,6 @@
-# [Project name]
+# NYCELO
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An interactive web app that crowdsources NYC neighborhood rankings across traits (dining, walkability, subway access, etc.) via head-to-head ELO matchups.
 
 ## Run & Operate
 
@@ -9,28 +9,41 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/scripts run seed-nycelo` — seed traits + neighborhoods (idempotent; skips if data exists)
 - Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
+- Frontend: React + Vite (`artifacts/nycelo`), wouter, TanStack Query, react-leaflet, Tailwind
+- API: Express 5 (`artifacts/api-server`)
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- API contract: `lib/api-spec/openapi.yaml` (source of truth; re-run codegen after edits)
+- DB schema: `lib/db/src/schema/` (neighborhoods, traits, ratings, votes)
+- ELO engine: `artifacts/api-server/src/lib/elo.ts` (K=32, draws = 0.5, skips untouched)
+- API routes: `artifacts/api-server/src/routes/nycelo.ts`
+- Frontend pages: `artifacts/nycelo/src/pages/` (home, rank, leaderboard)
+- Seed data: `scripts/src/seed-nycelo.ts` (178 neighborhoods, 14 traits)
+- Neighborhood photos: `artifacts/nycelo/public/images/vibes/*.jpg` — 14 AI-generated "vibe" images shared across neighborhoods; `photoUrl` in DB is a path relative to the app base
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Ratings are per neighborhood **per trait** (unique index on `neighborhood_id, trait_id`), lazily created at 1500 on first matchup.
+- Matchup selection: contender A random; contender B chosen by nearest ELO rating plus random jitter, for competitive duels.
+- Voting is anonymous and global — no accounts; every vote is a row in `votes`, `skip` outcomes recorded but leave ratings untouched.
+- Codegen quirks: avoid `type: integer` in OpenAPI bodies/responses (generates zod-v4-only `zod.int()`); avoid path params whose zod name collides with query-param types — use query params.
+- Design language: "Subway Brutalism" — safety orange / MTA blue & yellow, Bricolage Grotesque + Space Mono, hard edges, offset shadows.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Home: rotating showcase of current #1 per trait, global stats, CTA.
+- /rank: two-neighborhood duel for one trait with photos, shared Leaflet map, vote / too-hard-to-tell (draw) / skip.
+- /leaderboard: per-trait standings with borough filters, W/L/D and ratings.
 
 ## User preferences
 
@@ -38,7 +51,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- After changing `lib/api-spec/openapi.yaml`, run codegen before touching generated types.
+- The seed script exits early if neighborhoods exist; truncate tables first to re-seed.
 
 ## Pointers
 
