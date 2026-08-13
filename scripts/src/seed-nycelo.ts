@@ -1,4 +1,7 @@
 import { db, neighborhoodsTable, traitsTable } from "@workspace/db";
+import HOOD_META from "./nycelo-hood-meta.json";
+
+const metaByName = new Map(HOOD_META.map((m) => [m.name, m]));
 
 type Vibe =
   | "brownstone"
@@ -249,7 +252,7 @@ async function main() {
       lat,
       lng,
       photoUrl: photo(vibe),
-      blurb: null,
+      blurb: metaByName.get(name)?.blurb ?? null,
     })),
   );
 

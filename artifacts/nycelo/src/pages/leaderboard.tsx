@@ -176,6 +176,11 @@ export default function Leaderboard() {
                         <MapPin className="w-3 h-3" />
                         {entry.neighborhood.borough}
                       </div>
+                      {entry.neighborhood.blurb && (
+                        <div className="font-mono text-[11px] md:text-xs text-muted-foreground mt-1 max-w-lg line-clamp-2 md:line-clamp-none">
+                          {entry.neighborhood.blurb}
+                        </div>
+                      )}
                     </div>
                   </div>
 

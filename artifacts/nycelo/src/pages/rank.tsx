@@ -141,6 +141,11 @@ export default function Rank() {
             <h2 className="font-display font-black text-5xl md:text-7xl uppercase tracking-tighter leading-none mb-2 text-foreground" style={{ textShadow: '2px 2px 0px white, -1px -1px 0px white, 1px -1px 0px white, -1px 1px 0px white, 1px 1px 0px white' }}>
               {a.neighborhood.name}
             </h2>
+            {a.neighborhood.blurb && (
+              <p className="font-mono text-xs md:text-sm font-bold text-foreground bg-background/80 border-2 border-border px-2 py-1 inline-block max-w-md">
+                {a.neighborhood.blurb}
+              </p>
+            )}
           </div>
           
           <Button 
@@ -222,6 +227,11 @@ export default function Rank() {
             <h2 className="font-display font-black text-5xl md:text-7xl uppercase tracking-tighter leading-none mb-2 text-foreground" style={{ textShadow: '2px 2px 0px white, -1px -1px 0px white, 1px -1px 0px white, -1px 1px 0px white, 1px 1px 0px white' }}>
               {b.neighborhood.name}
             </h2>
+            {b.neighborhood.blurb && (
+              <p className="font-mono text-xs md:text-sm font-bold text-foreground bg-background/80 border-2 border-border px-2 py-1 inline-block max-w-md">
+                {b.neighborhood.blurb}
+              </p>
+            )}
           </div>
           
           <Button 
