@@ -144,8 +144,17 @@ export default function Leaderboard() {
               {leaderboard.entries.map((entry, idx) => (
                 <div 
                   key={entry.neighborhood.id}
+                  onClick={() => setLocation(`/neighborhood/${entry.neighborhood.id}`)}
+                  role="link"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      setLocation(`/neighborhood/${entry.neighborhood.id}`)
+                    }
+                  }}
                   className={cn(
-                    "animate-slide-up flex items-center gap-4 p-3 md:p-4 border-2 border-border bg-white transition-transform hover:-translate-y-1 hover:translate-x-1 hover:shadow-brutal-sm",
+                    "animate-slide-up flex items-center gap-4 p-3 md:p-4 border-2 border-border bg-white transition-transform hover:-translate-y-1 hover:translate-x-1 hover:shadow-brutal-sm cursor-pointer",
                     idx === 0 ? "border-4 border-primary bg-primary/5 scale-[1.02] origin-left shadow-brutal" : "",
                     idx === 1 ? "border-4 border-mta-blue bg-mta-blue/5 shadow-brutal" : "",
                     idx === 2 ? "border-4 border-mta-yellow bg-mta-yellow/5 shadow-brutal" : ""

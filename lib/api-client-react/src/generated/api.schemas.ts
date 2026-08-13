@@ -111,6 +111,23 @@ export interface ShowcaseEntry {
   gamesPlayed?: number | null;
 }
 
+export interface TraitRanking {
+  trait: Trait;
+  rating: number;
+  /** @nullable */
+  rank?: number | null;
+  totalRanked: number;
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+export interface NeighborhoodDetail {
+  neighborhood: Neighborhood;
+  traitRankings: TraitRanking[];
+}
+
 export interface SiteStats {
   totalVotes: number;
   totalNeighborhoods: number;
@@ -131,5 +148,9 @@ traitSlug: string;
  */
 borough?: string;
 limit?: number;
+};
+
+export type GetNeighborhoodParams = {
+id: number;
 };
 

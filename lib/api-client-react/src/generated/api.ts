@@ -23,9 +23,11 @@ import type {
   ApiErrorResponse,
   GetLeaderboardParams,
   GetMatchupParams,
+  GetNeighborhoodParams,
   HealthStatus,
   Leaderboard,
   Matchup,
+  NeighborhoodDetail,
   ShowcaseEntry,
   SiteStats,
   Trait,
@@ -442,6 +444,90 @@ export function useGetLeaderboard<TData = Awaited<ReturnType<typeof getLeaderboa
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetLeaderboardQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetNeighborhoodUrl = (params: GetNeighborhoodParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/neighborhood?${stringifiedParams}` : `/api/neighborhood`
+}
+
+/**
+ * @summary Get a neighborhood's rank and rating across all traits
+ */
+export const getNeighborhood = async (params: GetNeighborhoodParams, options?: Parameters<typeof customFetch>[1]): Promise<NeighborhoodDetail> => {
+
+  return customFetch<NeighborhoodDetail>(getGetNeighborhoodUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNeighborhoodQueryKey = (params?: GetNeighborhoodParams,) => {
+    return [
+    `/api/neighborhood`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNeighborhoodQueryOptions = <TData = Awaited<ReturnType<typeof getNeighborhood>>, TError = ErrorType<ApiErrorResponse>>(params: GetNeighborhoodParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNeighborhood>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNeighborhoodQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNeighborhood>>> = ({ signal }) => getNeighborhood(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNeighborhood>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNeighborhoodQueryResult = NonNullable<Awaited<ReturnType<typeof getNeighborhood>>>
+export type GetNeighborhoodQueryError = ErrorType<ApiErrorResponse>
+
+
+/**
+ * @summary Get a neighborhood's rank and rating across all traits
+ */
+
+export function useGetNeighborhood<TData = Awaited<ReturnType<typeof getNeighborhood>>, TError = ErrorType<ApiErrorResponse>>(
+ params: GetNeighborhoodParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNeighborhood>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNeighborhoodQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

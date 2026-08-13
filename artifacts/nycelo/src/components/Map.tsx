@@ -41,6 +41,31 @@ function MapBounds({ markers }: { markers: Array<{lat: number, lng: number}> }) 
   return null
 }
 
+interface SingleMapProps {
+  point: { lat: number, lng: number, name: string }
+}
+
+export function SingleMap({ point }: SingleMapProps) {
+  return (
+    <div className="w-full h-full relative z-0">
+      <MapContainer
+        center={[point.lat, point.lng]}
+        zoom={13}
+        scrollWheelZoom={false}
+        style={{ height: '100%', width: '100%' }}
+        attributionControl={false}
+      >
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+        />
+        <Marker position={[point.lat, point.lng]} icon={redIcon}>
+          <Popup className="font-mono font-bold">{point.name}</Popup>
+        </Marker>
+      </MapContainer>
+    </div>
+  )
+}
+
 interface DualMapProps {
   a: { lat: number, lng: number, name: string } | undefined
   b: { lat: number, lng: number, name: string } | undefined

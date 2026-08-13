@@ -14,6 +14,7 @@ import { Layout } from '@/components/layout';
 import Home from '@/pages/home';
 import Rank from '@/pages/rank';
 import Leaderboard from '@/pages/leaderboard';
+import NeighborhoodDetail from '@/pages/neighborhood';
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ function Router() {
           <Route path="/" component={Home} />
           <Route path="/rank" component={Rank} />
           <Route path="/leaderboard" component={Leaderboard} />
+          <Route path="/neighborhood/:id" component={NeighborhoodDetail} />
           <Route component={NotFound} />
         </Switch>
       </RoutedErrorBoundary>

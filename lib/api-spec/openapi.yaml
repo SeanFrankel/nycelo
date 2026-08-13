@@ -132,6 +132,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+  /neighborhood:
+    get:
+      operationId: getNeighborhood
+      tags: [leaderboard]
+      summary: Get a neighborhood's rank and rating across all traits
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Neighborhood detail with per-trait rankings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NeighborhoodDetail"
+        "404":
+          description: Neighborhood not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
   /showcase:
     get:
       operationId: getShowcase
@@ -277,6 +301,29 @@ components:
         rating: { type: ["number", "null"] }
         gamesPlayed: { type: ["number", "null"] }
       required: [trait]
+    TraitRanking:
+      type: object
+      properties:
+        trait:
+          $ref: "#/components/schemas/Trait"
+        rating: { type: number }
+        rank: { type: ["number", "null"] }
+        totalRanked: { type: number }
+        gamesPlayed: { type: number }
+        wins: { type: number }
+        losses: { type: number }
+        draws: { type: number }
+      required: [trait, rating, totalRanked, gamesPlayed, wins, losses, draws]
+    NeighborhoodDetail:
+      type: object
+      properties:
+        neighborhood:
+          $ref: "#/components/schemas/Neighborhood"
+        traitRankings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TraitRanking"
+      required: [neighborhood, traitRankings]
     SiteStats:
       type: object
       properties:

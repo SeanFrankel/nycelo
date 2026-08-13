@@ -17,6 +17,8 @@ import {
   GetLeaderboardResponse,
   GetShowcaseResponse,
   GetStatsResponse,
+  GetNeighborhoodQueryParams,
+  GetNeighborhoodResponse,
 } from "@workspace/api-zod";
 import { updateElo } from "../lib/elo";
 
@@ -324,6 +326,56 @@ router.get("/leaderboard", async (req, res): Promise<void> => {
       })),
     }),
   );
+});
+
+router.get("/neighborhood", async (req, res): Promise<void> => {
+  const query = GetNeighborhoodQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const [neighborhood] = await db
+    .select()
+    .from(neighborhoodsTable)
+    .where(eq(neighborhoodsTable.id, query.data.id));
+  if (!neighborhood) {
+    res.status(404).json({ error: "Neighborhood not found" });
+    return;
+  }
+
+  const traits = await db.select().from(traitsTable).orderBy(traitsTable.id);
+  // Read-only: never insert rating rows from a GET — that would make
+  // unvoted neighborhoods appear on leaderboards just by being viewed.
+  const existingRatings = await db
+    .select()
+    .from(ratingsTable)
+    .where(eq(ratingsTable.neighborhoodId, neighborhood.id));
+  const ratingByTrait = new Map(existingRatings.map((r) => [r.traitId, r]));
+
+  const traitRankings = await Promise.all(
+    traits.map(async (trait) => {
+      const rating = ratingByTrait.get(trait.id);
+      const [total] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(ratingsTable)
+        .where(eq(ratingsTable.traitId, trait.id));
+      return {
+        trait: await traitWithVotes(trait),
+        rating: rating?.rating ?? 1500,
+        // Rank matches leaderboard semantics: a neighborhood is ranked
+        // iff it has a rating row for the trait (same rows the
+        // leaderboard lists, ordered by rating desc).
+        rank: rating ? await rankOf(trait.id, rating.rating) : null,
+        totalRanked: total?.count ?? 0,
+        gamesPlayed: rating?.gamesPlayed ?? 0,
+        wins: rating?.wins ?? 0,
+        losses: rating?.losses ?? 0,
+        draws: rating?.draws ?? 0,
+      };
+    }),
+  );
+
+  res.json(GetNeighborhoodResponse.parse({ neighborhood, traitRankings }));
 });
 
 router.get("/showcase", async (_req, res): Promise<void> => {

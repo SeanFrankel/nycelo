@@ -148,6 +148,43 @@ export const GetLeaderboardResponse = zod.object({
 
 
 /**
+ * @summary Get a neighborhood's rank and rating across all traits
+ */
+export const GetNeighborhoodQueryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetNeighborhoodResponse = zod.object({
+  "neighborhood": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "borough": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "photoUrl": zod.string().nullish(),
+  "blurb": zod.string().nullish()
+}),
+  "traitRankings": zod.array(zod.object({
+  "trait": zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "emojiHint": zod.string().nullish(),
+  "totalVotes": zod.number()
+}),
+  "rating": zod.number(),
+  "rank": zod.number().nullish(),
+  "totalRanked": zod.number(),
+  "gamesPlayed": zod.number(),
+  "wins": zod.number(),
+  "losses": zod.number(),
+  "draws": zod.number()
+}))
+})
+
+
+/**
  * @summary Current top neighborhood for each trait (home page revolving showcase)
  */
 export const GetShowcaseResponseItem = zod.object({
