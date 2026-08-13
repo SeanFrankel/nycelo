@@ -139,17 +139,24 @@ export default function Rank() {
   return (
     <div className="flex-1 flex flex-col md:flex-row relative bg-background">
       
-      {/* Header for mobile - floats over map */}
+      {/* Header — floats at top, shows matchup identities + trait */}
       <div className="absolute top-4 left-0 right-0 z-20 flex justify-center pointer-events-none px-4">
-        <div className="bg-background border-4 border-border shadow-brutal px-6 py-3 text-center pointer-events-auto max-w-md">
-          <h1 className="font-display font-black uppercase text-xl sm:text-2xl md:text-3xl leading-none tracking-tight">
-            Which is better for <span className="text-primary">{trait.name}?</span>
+        <div className="bg-background border-4 border-border shadow-brutal px-6 py-3 text-center pointer-events-auto max-w-2xl w-full">
+          {/* Neighborhood names + VS */}
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <span className="font-display font-black text-lg sm:text-2xl uppercase tracking-tighter leading-none text-primary truncate max-w-[38%]">
+              {a.neighborhood.name}
+            </span>
+            <span className="font-display font-black text-2xl sm:text-3xl uppercase -rotate-6 bg-foreground text-background px-2 py-0.5 shrink-0">
+              VS
+            </span>
+            <span className="font-display font-black text-lg sm:text-2xl uppercase tracking-tighter leading-none text-mta-blue truncate max-w-[38%]">
+              {b.neighborhood.name}
+            </span>
+          </div>
+          <h1 className="font-mono font-bold uppercase text-xs sm:text-sm tracking-widest text-muted-foreground leading-tight">
+            Which is better for <span className="text-foreground">{trait.name}?</span>
           </h1>
-          {trait.description && (
-            <p className="font-mono text-xs md:text-sm text-muted-foreground mt-2 font-bold">
-              {trait.description}
-            </p>
-          )}
         </div>
       </div>
 
@@ -238,19 +245,11 @@ export default function Rank() {
       {/* Map Divider (Middle) */}
       <div className="hidden md:block absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 w-64 h-64 border-4 border-border shadow-brutal bg-card overflow-hidden">
         <DualMap a={a.neighborhood} b={b.neighborhood} />
-        
-        {/* VS Badge */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 bg-background border-4 border-border shadow-brutal px-4 py-2 font-display font-black text-4xl uppercase -rotate-12 pointer-events-none">
-          VS
-        </div>
       </div>
       
       {/* Mobile Map */}
       <div className="md:hidden h-48 border-b-4 border-border relative z-10 bg-secondary">
         <DualMap a={a.neighborhood} b={b.neighborhood} />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 bg-background border-4 border-border shadow-brutal px-3 py-1 font-display font-black text-2xl uppercase -rotate-12 pointer-events-none">
-          VS
-        </div>
       </div>
 
       {/* Contender B (Right) */}
