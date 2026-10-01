@@ -1,16 +1,24 @@
 # NYCELO
 
+> Codex migration note: this project no longer requires Replit to run. With no
+> `DATABASE_URL`, it uses a persistent embedded PostgreSQL-compatible database
+> under `.local/`. Supplying `DATABASE_URL` preserves the original external
+> PostgreSQL behavior.
+
 An interactive web app that crowdsources NYC neighborhood rankings across traits (dining, walkability, subway access, etc.) via head-to-head ELO matchups.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm run dev` — initialize/seed the local database and run the API (5000) plus frontend (5173)
+- `pnpm run setup:local` — initialize and idempotently seed the local database only
+- `pnpm --filter @workspace/api-server run dev` — run only the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/scripts run seed-nycelo` — seed traits + neighborhoods (idempotent; skips if data exists)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Optional env: `DATABASE_URL` — external Postgres connection string; omit for the local embedded database
+- Optional env: `LOCAL_DATABASE_DIR` — override the local database directory
 
 ## Stack
 

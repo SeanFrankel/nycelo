@@ -1,4 +1,4 @@
-import { db, neighborhoodsTable, traitsTable } from "@workspace/db";
+import { db, dbReady, neighborhoodsTable, traitsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import HOOD_META from "./nycelo-hood-meta.json";
 
@@ -303,6 +303,7 @@ async function backfillPopularity() {
 }
 
 async function main() {
+  await dbReady;
   const existing = await db.select().from(neighborhoodsTable).limit(1);
   if (existing.length > 0) {
     console.log("Already seeded — backfilling popularity tiers only.");
